@@ -20,9 +20,6 @@
 #define GSL_GSL_H
 
 #include "gsl_assert.h"  // Ensures/Expects
-#include "gsl_util.h"    // finally()/narrow()/narrow_cast()...
-#include "span.h"           // span, strided_span...
-#include "string_span.h"    // zstring, string_span, zstring_builder...
 #include <memory>
 
 #ifdef _MSC_VER
@@ -45,7 +42,32 @@
 
 #endif // _MSC_VER
 
+namespace std {
+    template<class T>
+    using add_lvalue_reference_t = add_lvalue_reference<T>;
+    template<class T>
+    using add_const_t = add_const<T>;
+    template< bool B, class T = void >
+    using enable_if_t = typename enable_if<B,T>::type;
+    template< bool B, class T, class F >
+    using conditional_t = typename conditional<B,T,F>::type;
+    template< class T >
+    using remove_const_t    = typename remove_const<T>::type;
+    template< class T >
+    using remove_cv_t       = typename remove_cv<T>::type;
+    template< class T >
+    using remove_reference_t = typename remove_reference<T>::type;
+    template< class T >
+    using add_pointer_t = typename add_pointer<T>::type;
+    template< class T >
+    using decay_t = typename decay<T>::type;
+    template< class T >
+    using remove_all_extents_t = typename remove_all_extents<T>::type;
+}
 
+
+#include <type_traits>
+#include <vector>
 namespace gsl
 {
 
@@ -77,7 +99,18 @@ template<class T>
 class not_null
 {
     static_assert(std::is_assignable<T&, std::nullptr_t>::value, "T cannot be assigned nullptr.");
+    
+    template<typename Arg, typename... Args>
+    struct check_args : std::conditional<std::is_constructible<not_null<Arg>, Arg>::value, check_args<Arg, Args...>, std::false_type>{};
+    
+    template<typename Arg>
+    struct check_args<Arg> : std::is_constructible<not_null<Arg>, Arg>{};
+    
 public:
+    template<class... U>
+    not_null(U... args):ptr_(std::forward<U>(args)...){
+        check_args<U...> arg_check;
+    }
     not_null(T t) : ptr_(t) { ensure_invariant(); }
     not_null& operator=(const T& t) { ptr_ = t; ensure_invariant(); return *this; }
 
@@ -133,7 +166,7 @@ private:
     not_null<T>& operator-(size_t) = delete;
     not_null<T>& operator-=(size_t) = delete;
 };
-
+    
 } // namespace gsl
 
 namespace std
